@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isValidUUID } from "@/lib/utils";
-import { DEFAULT_QUESTIONS } from "@/lib/questions";
+import { calculateScore } from "@/lib/score";
 
 export async function POST(req: NextRequest) {
   const { roomCode, answers } = await req.json();
@@ -67,21 +67,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "questions fetch failed" }, { status: 500 });
   }
 
-  // 점수 계산: 기본 문항 (default-N) + 커스텀 문항 (uuid)
-  let correctCount = 0;
-
-  for (let i = 0; i < DEFAULT_QUESTIONS.length; i++) {
-    if (answers[`default-${i}`] === defaultAnswersArr[i]) correctCount++;
-  }
-
-  for (const q of customQuestions ?? []) {
-    if (answers[q.id] === q.correct_index) correctCount++;
-  }
-
-  const totalCount = DEFAULT_QUESTIONS.length + (customQuestions?.length ?? 0);
-  const score = totalCount > 0
-    ? Math.round((correctCount / totalCount) * 100)
-    : 0;
+  // 점수 계산
+  const { correctCount, totalCount, score } = calculateScore(
+    answers,
+    defaultAnswersArr,
+    customQuestions ?? []
+  );
 
   // responses INSERT
   const { error: responseError } = await supabase.from("responses").insert({
