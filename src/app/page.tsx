@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -32,28 +33,20 @@ export default function Home({
           {errorMessage && (
             <p className="text-sm text-destructive text-left">{errorMessage}</p>
           )}
-          <div className="flex flex-col gap-3">
-            <Button
-              type="submit"
-              name="intent"
-              value="host"
-              size="lg"
-              className="w-full"
-            >
-              방 만들기
-            </Button>
-            <Button
-              type="submit"
-              name="intent"
-              value="guest"
-              size="lg"
-              variant="outline"
-              className="w-full"
-            >
-              참여하기
-            </Button>
-          </div>
+          <Button
+            type="submit"
+            name="intent"
+            value="host"
+            size="lg"
+            className="w-full"
+          >
+            방 만들기
+          </Button>
         </form>
+
+        <Button asChild size="lg" variant="outline" className="w-full">
+          <Link href="/quiz/join" role="button">참여하기</Link>
+        </Button>
       </div>
     </main>
   );

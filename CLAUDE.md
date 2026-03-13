@@ -21,7 +21,6 @@ npm run lint         # 린터 실행
 ```
 
 ## 코드 스타일
-
 - TypeScript strict 모드 사용, `any` 타입 금지
 - default export 대신 named export 사용
 - CSS: Tailwind 유틸리티 클래스 사용, 커스텀 CSS 파일 금지
@@ -36,10 +35,7 @@ npm run lint         # 린터 실행
 UUID 기반 익명 인증(소셜 로그인 없음). 생성된 ID는 HTTP-Only 쿠키에 저장. 쿠키가 없는 사용자는 메인(닉네임 입력) 페이지로 리다이렉트.
 
 ### 데이터베이스 스키마 (Supabase)
-`users`, `quiz_rooms`, `questions`, `responses` 4개 테이블. 상세 스키마는 `docs/PROD.md` §4 참고. 주요 관계:
-- `quiz_rooms.host_id` → `users.id`
-- `questions.room_id` → `quiz_rooms.id`
-- `responses.room_id` + `responses.guest_id` → quiz_rooms/users
+상세 스키마는 `docs/PRD.md` §4 참고
 
 ### 점수 계산
 점수 = (정답 수 / 전체 문항 수) × 100, 퀴즈 방 단위로 내림차순 정렬.
