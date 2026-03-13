@@ -6,11 +6,12 @@ const GUEST_UUID_2 = "a0000000-0000-0000-0000-000000000002";
 let roomCode: string;
 
 test.beforeAll(async ({ request }) => {
-  // 방 생성
+  // 방 생성 (커스텀 문항 2개)
   const createRes = await request.post("/api/quiz/create", {
     headers: { Cookie: "user_id=test-uuid-host" },
     data: {
-      questions: [
+      defaultAnswers: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      customQuestions: [
         {
           question_text: "질문1",
           options: ["A", "B", "C", "D"],

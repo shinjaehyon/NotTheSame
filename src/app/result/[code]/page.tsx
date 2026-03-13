@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
 
 interface RankingEntry {
   rank: number;
@@ -83,6 +85,11 @@ export default function ResultPage({
             {data?.myCorrectCount ?? "-"} / {data?.myTotalCount ?? "-"} 정답
           </p>
         </section>
+
+        {/* 홈으로 버튼 */}
+        <Button asChild variant="outline" className="w-full" data-testid="home-btn">
+          <Link href="/">홈으로</Link>
+        </Button>
 
         {/* 랭킹 테이블 */}
         <section className="space-y-3">

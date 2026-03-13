@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-function isValidUUID(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value
-  );
-}
+import { isValidUUID } from "@/lib/utils";
 
 function generateAccessCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -17,7 +12,7 @@ function generateAccessCode(): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { questions } = await req.json();
+  const { defaultAnswers, customQuestions } = await req.json();
 
   const rawUserId = req.cookies.get("user_id")?.value;
   const supabase = createClient();
@@ -56,6 +51,20 @@ export async function POST(req: NextRequest) {
     userId = data.id;
   }
 
+  // 기존 방 확인 (1인 1방 제한)
+  const { data: existingRoom } = await supabase
+    .from("quiz_rooms")
+    .select("access_code")
+    .eq("host_id", userId)
+    .single();
+
+  if (existingRoom) {
+    return NextResponse.json(
+      { error: "room_exists", accessCode: existingRoom.access_code },
+      { status: 409 }
+    );
+  }
+
   // 중복 없는 접속 코드 생성
   let accessCode = "";
   for (let attempt = 0; attempt < 10; attempt++) {
@@ -77,7 +86,11 @@ export async function POST(req: NextRequest) {
 
   const { data: room, error: roomError } = await supabase
     .from("quiz_rooms")
-    .insert({ access_code: accessCode, host_id: userId })
+    .insert({
+      access_code: accessCode,
+      host_id: userId,
+      default_answers: defaultAnswers ?? [],
+    })
     .select("id")
     .single();
 
@@ -85,21 +98,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "room insert failed" }, { status: 500 });
   }
 
-  const questionsToInsert = questions.map(
-    (q: { question_text: string; options: string[]; correct_index: number }) => ({
-      room_id: room.id,
-      question_text: q.question_text,
-      options: q.options,
-      correct_index: q.correct_index,
-    })
-  );
+  // 커스텀 문항만 DB에 저장
+  if (customQuestions && customQuestions.length > 0) {
+    const questionsToInsert = customQuestions.map(
+      (q: { question_text: string; options: string[]; correct_index: number }) => ({
+        room_id: room.id,
+        question_text: q.question_text,
+        options: q.options,
+        correct_index: q.correct_index,
+      })
+    );
 
-  const { error: questionsError } = await supabase
-    .from("questions")
-    .insert(questionsToInsert);
+    const { error: questionsError } = await supabase
+      .from("questions")
+      .insert(questionsToInsert);
 
-  if (questionsError) {
-    return NextResponse.json({ error: "questions insert failed" }, { status: 500 });
+    if (questionsError) {
+      return NextResponse.json({ error: "questions insert failed" }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ accessCode });

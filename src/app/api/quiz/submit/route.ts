@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-function isValidUUID(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value
-  );
-}
+import { isValidUUID } from "@/lib/utils";
+import { DEFAULT_QUESTIONS } from "@/lib/questions";
 
 export async function POST(req: NextRequest) {
   const { roomCode, answers } = await req.json();
@@ -48,10 +44,10 @@ export async function POST(req: NextRequest) {
     guestId = data.id;
   }
 
-  // room 조회
+  // room + default_answers 조회
   const { data: room } = await supabase
     .from("quiz_rooms")
-    .select("id")
+    .select("id, default_answers")
     .eq("access_code", roomCode.toUpperCase())
     .single();
 
@@ -59,23 +55,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "room not found" }, { status: 404 });
   }
 
-  // questions + correct_index 조회 (서버에서만)
-  const { data: questions, error: questionsError } = await supabase
+  const defaultAnswersArr: number[] = room.default_answers ?? [];
+
+  // 커스텀 문항 + correct_index 조회 (서버에서만)
+  const { data: customQuestions, error: questionsError } = await supabase
     .from("questions")
     .select("id, correct_index")
     .eq("room_id", room.id);
 
-  if (questionsError || !questions) {
+  if (questionsError) {
     return NextResponse.json({ error: "questions fetch failed" }, { status: 500 });
   }
 
-  // 점수 계산
+  // 점수 계산: 기본 문항 (default-N) + 커스텀 문항 (uuid)
   let correctCount = 0;
-  for (const q of questions) {
+
+  for (let i = 0; i < DEFAULT_QUESTIONS.length; i++) {
+    if (answers[`default-${i}`] === defaultAnswersArr[i]) correctCount++;
+  }
+
+  for (const q of customQuestions ?? []) {
     if (answers[q.id] === q.correct_index) correctCount++;
   }
-  const score = questions.length > 0
-    ? Math.round((correctCount / questions.length) * 100)
+
+  const totalCount = DEFAULT_QUESTIONS.length + (customQuestions?.length ?? 0);
+  const score = totalCount > 0
+    ? Math.round((correctCount / totalCount) * 100)
     : 0;
 
   // responses INSERT
@@ -89,5 +94,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "response insert failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ score, correctCount, totalCount: questions.length });
+  return NextResponse.json({ score, correctCount, totalCount });
 }

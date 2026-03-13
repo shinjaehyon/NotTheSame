@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-function isValidUUID(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value
-  );
-}
+import { isValidUUID } from "@/lib/utils";
+import { DEFAULT_QUESTIONS } from "@/lib/questions";
 
 export async function GET(
   req: NextRequest,
@@ -25,11 +21,13 @@ export async function GET(
     return NextResponse.json({ error: "room not found" }, { status: 404 });
   }
 
-  // 전체 문항 수
-  const { count: totalCount } = await supabase
+  // 전체 문항 수 = 기본 10 + DB 커스텀 문항 수
+  const { count: customCount } = await supabase
     .from("questions")
     .select("id", { count: "exact", head: true })
     .eq("room_id", room.id);
+
+  const totalCount = DEFAULT_QUESTIONS.length + (customCount ?? 0);
 
   // 랭킹 조회 (score 내림차순)
   const { data: responses } = await supabase
@@ -43,7 +41,7 @@ export async function GET(
       rankings: [],
       myScore: null,
       myCorrectCount: null,
-      myTotalCount: totalCount ?? 0,
+      myTotalCount: totalCount,
       myGuestId: null,
     });
   }
@@ -76,7 +74,7 @@ export async function GET(
     : null;
   const myScore = myResponse?.score ?? null;
   const myCorrectCount =
-    myScore !== null && totalCount
+    myScore !== null
       ? Math.round((myScore * totalCount) / 100)
       : null;
 
@@ -84,7 +82,7 @@ export async function GET(
     rankings,
     myScore,
     myCorrectCount,
-    myTotalCount: totalCount ?? 0,
+    myTotalCount: totalCount,
     myGuestId,
   });
 }

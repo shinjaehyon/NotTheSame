@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DEFAULT_QUESTIONS, type Question } from "@/lib/questions";
+import { DEFAULT_QUESTIONS } from "@/lib/questions";
 
 interface CustomQuestion {
   question_text: string;
@@ -13,7 +15,10 @@ interface CustomQuestion {
 
 type Phase = "edit" | "done";
 
-export default function QuizCreatePage() {
+function QuizCreateInner() {
+  const searchParams = useSearchParams();
+  const editCode = searchParams.get("edit") ?? undefined;
+
   const [defaultAnswers, setDefaultAnswers] = useState<number[]>(
     DEFAULT_QUESTIONS.map((q) => q.correct_index)
   );
@@ -25,6 +30,18 @@ export default function QuizCreatePage() {
   const [phase, setPhase] = useState<Phase>("edit");
   const [accessCode, setAccessCode] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // edit 모드: 기존 데이터 로드
+  useEffect(() => {
+    if (!editCode) return;
+    fetch(`/api/quiz/${editCode}/edit-data`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.defaultAnswers) setDefaultAnswers(data.defaultAnswers);
+        if (data.customQuestions) setCustomQuestions(data.customQuestions);
+        if (data.accessCode) setAccessCode(data.accessCode);
+      });
+  }, [editCode]);
 
   function handleSaveCustom() {
     if (!formText.trim()) return;
@@ -51,24 +68,29 @@ export default function QuizCreatePage() {
 
   async function handleSubmit() {
     setLoading(true);
-    const questions: Question[] = [
-      ...DEFAULT_QUESTIONS.map((q, i) => ({
-        ...q,
-        correct_index: defaultAnswers[i],
-      })),
-      ...customQuestions,
-    ];
 
-    const res = await fetch("/api/quiz/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ questions }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      setAccessCode(data.accessCode);
-      setPhase("done");
+    if (editCode) {
+      // 수정 모드: PUT /api/quiz/update
+      const res = await fetch("/api/quiz/update", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultAnswers, customQuestions }),
+      });
+      if (res.ok) {
+        setPhase("done");
+      }
+    } else {
+      // 생성 모드: POST /api/quiz/create
+      const res = await fetch("/api/quiz/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultAnswers, customQuestions }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAccessCode(data.accessCode);
+        setPhase("done");
+      }
     }
     setLoading(false);
   }
@@ -81,7 +103,9 @@ export default function QuizCreatePage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm space-y-6 text-center">
-          <h1 className="text-2xl font-bold">퀴즈 완성!</h1>
+          <h1 className="text-2xl font-bold">
+            {editCode ? "수정 완료!" : "퀴즈 완성!"}
+          </h1>
           <p className="text-sm text-muted-foreground">
             아래 코드를 친구에게 공유하세요
           </p>
@@ -94,6 +118,9 @@ export default function QuizCreatePage() {
           <Button onClick={handleCopy} className="w-full">
             복사
           </Button>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/">홈으로</Link>
+          </Button>
         </div>
       </main>
     );
@@ -102,7 +129,9 @@ export default function QuizCreatePage() {
   return (
     <main className="flex min-h-screen flex-col items-center p-6">
       <div className="w-full max-w-lg space-y-6">
-        <h1 className="text-2xl font-bold text-center">퀴즈 만들기</h1>
+        <h1 className="text-2xl font-bold text-center">
+          {editCode ? "내 답변 수정" : "퀴즈 만들기"}
+        </h1>
 
         {/* 기본 문항 */}
         <section className="space-y-3">
@@ -233,9 +262,23 @@ export default function QuizCreatePage() {
           onClick={handleSubmit}
           disabled={loading}
         >
-          {loading ? "생성 중..." : "퀴즈 완성하기"}
+          {loading ? "저장 중..." : editCode ? "수정 완료" : "퀴즈 완성하기"}
         </Button>
       </div>
     </main>
+  );
+}
+
+export default function QuizCreatePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center">
+          <p>로딩 중...</p>
+        </main>
+      }
+    >
+      <QuizCreateInner />
+    </Suspense>
   );
 }

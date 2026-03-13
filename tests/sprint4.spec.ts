@@ -4,11 +4,12 @@ let roomCode: string;       // S4-1, S4-3용 (2문항)
 let roomCodeSingle: string; // S4-4용 (1문항)
 
 test.beforeAll(async ({ request }) => {
-  // 2문항 방 (S4-1, S4-3용)
+  // 2문항 방 (S4-1, S4-3용) — 커스텀 문항 2개, 기본 문항은 공유
   const res = await request.post("/api/quiz/create", {
     headers: { Cookie: "user_id=test-uuid-host" },
     data: {
-      questions: [
+      defaultAnswers: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      customQuestions: [
         {
           question_text: "테스트 질문 1",
           options: ["A", "B", "C", "D"],
@@ -25,17 +26,12 @@ test.beforeAll(async ({ request }) => {
   const body = await res.json();
   roomCode = body.accessCode;
 
-  // 1문항 방 (S4-4용)
+  // 커스텀 문항 없는 방 (S4-4용) — 기본 10문항만
   const res2 = await request.post("/api/quiz/create", {
     headers: { Cookie: "user_id=test-uuid-host" },
     data: {
-      questions: [
-        {
-          question_text: "제출 테스트 질문",
-          options: ["A", "B"],
-          correct_index: 0,
-        },
-      ],
+      defaultAnswers: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      customQuestions: [],
     },
   });
   const body2 = await res2.json();
@@ -80,13 +76,16 @@ test("S4-3: 문항 단계별 진행 및 진행률 표시", async ({ page }) => {
 test("S4-4: 전체 제출 후 result 페이지 이동", async ({ page }) => {
   await page.goto(`/quiz/${roomCodeSingle}`);
   await expect(page.getByTestId("progress-bar")).toBeVisible();
-  const questionCount = await page.locator('[data-testid="option-0"]').count();
-  for (let i = 0; i < questionCount; i++) {
+
+  // 기본 10문항 모두 순회 후 제출
+  while (true) {
     await page.getByTestId("option-0").click();
-    const nextBtn = page.getByRole("button", {
-      name: i < questionCount - 1 ? "다음" : "제출하기",
-    });
-    await nextBtn.click();
+    const submitBtn = page.getByRole("button", { name: "제출하기" });
+    if (await submitBtn.isVisible()) {
+      await submitBtn.click();
+      break;
+    }
+    await page.getByRole("button", { name: "다음" }).click();
   }
   await expect(page).toHaveURL(/\/result/, { timeout: 15000 });
 });
